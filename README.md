@@ -2,11 +2,6 @@
 
 > **A Multi-Modal Spatiotemporal Transformer–GNN Pipeline with SHAP Explainability for Real-Time Traffic Congestion Prediction**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)](https://pytorch.org)
-[![Google Colab](https://img.shields.io/badge/Platform-Google%20Colab-yellow)](https://colab.research.google.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-
 **Authors:** Peter Yacoub · Mohamed Malek Kaouach  
 **Supervisor:** Prof. Mohammed Deriche  
 **Institution:** Ajman University — AIRC | MAI603: Machine Learning | May 2026  
