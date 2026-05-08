@@ -66,10 +66,10 @@ STGTransformer is the first framework to combine:
 stgtransformer/
 │
 ├── Phase_1.ipynb              # Data download from Kaggle + PEMS-BAY
-├── Phase2_Phase3.ipynb        # Preprocessing, EDA, baseline models (HA, ARIMA, LSTM)
+├── Phase2&3.ipynb        # Preprocessing, EDA, baseline models (HA, ARIMA, LSTM)
 ├── Phase_4.ipynb              # STGTransformer training + multi-seed validation
-├── Phase_55.ipynb             # Ablation study + SHAP explainability
-├── Phase66.ipynb              # Deployment: FastAPI + Docker + Streamlit
+├── Phase_5.ipynb             # Ablation study + SHAP explainability
+├── Phase6.ipynb              # Deployment: FastAPI + Docker + Streamlit
 │
 ├── README.md                  # This file
 └── LICENSE
@@ -232,13 +232,13 @@ os.environ['KAGGLE_API_TOKEN'] = "your_kaggle_token_here"
 
 ### Phase 2 & 3 — Preprocessing & Baselines
 
-**Notebook:** `Phase2_Phase3.ipynb`  
+**Notebook:** `Phase2&3.ipynb`  
 **Purpose:** Load and merge datasets, build the 3D model-ready array, run baseline models (HA, ARIMA, LSTM).  
 **Runtime:** ~45–90 minutes (merge is the slow step)
 
 **Steps:**
 
-1. Open `Phase2_Phase3.ipynb` in Google Colab
+1. Open `Phase2&3.ipynb` in Google Colab
 2. Ensure Phase 1 is complete and Drive files exist
 3. Run all cells top to bottom
 
@@ -329,7 +329,7 @@ multi_seed_results.json       ← after Cell 8
 
 ### Phase 5 — Ablation & SHAP
 
-**Notebook:** `Phase_55.ipynb`  
+**Notebook:** `Phase_5.ipynb`  
 **Purpose:** Ablation study (per-modality contribution), SHAP explainability (15-min horizon).  
 **Runtime:** ~30 min (ablation) + ~15–20 min (SHAP on GPU) or ~4 hours (SHAP on CPU)
 
@@ -378,7 +378,7 @@ pred_vs_gt.png
 
 ### Phase 6 — Deployment
 
-**Notebook:** `Phase66.ipynb`  
+**Notebook:** `Phase6.ipynb`  
 **Purpose:** Build and launch the Streamlit dashboard for live traffic prediction.  
 **Runtime:** ~5 minutes setup, dashboard runs indefinitely
 
@@ -538,11 +538,7 @@ If you use this code or results in your work, please cite:
 }
 ```
 
----
 
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
