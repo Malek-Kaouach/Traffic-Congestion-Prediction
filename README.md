@@ -4,7 +4,7 @@
 
 **Authors:** Peter Yacoub · Mohamed Malek Kaouach  
 **Supervisor:** Prof. Mohammed Deriche  
-**Institution:** Ajman University — AIRC | MAI603: Machine Learning | May 2026  
+**Institution:** Ajman University — AIRC 
 **GitHub:** [PeterYNY/stgtransformer](https://github.com/PeterYNY/stgtransformer)
 
 ---
