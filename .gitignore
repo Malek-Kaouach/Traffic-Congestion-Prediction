@@ -1,0 +1,21 @@
+﻿.venv/
+.env
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.log
+
+# Large datasets & raw files
+traffic_project/raw_data/US_Accidents_March23.csv
+traffic_project/processed_data/
+traffic_project/results/
+traffic_project/checkpoints/
+traffic_project/data/
+
+# Extensions for large binaries
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.parquet
+*.csv
