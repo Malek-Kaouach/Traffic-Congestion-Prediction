@@ -1,7 +1,0 @@
-﻿=== Dataset Download Instructions ===
-
-Download the required raw dataset files (pems-bay.h5, US_Accidents_March23.csv, adj_mx_bay.pkl) from Google Drive:
-Google Drive Link: https://drive.google.com/drive/folders/1nq_MecZAVEwCmv6BQVhVMmi2f4591SRw?usp=sharing
-
-Place the downloaded files directly into this directory:
-traffic_project/raw_data/
