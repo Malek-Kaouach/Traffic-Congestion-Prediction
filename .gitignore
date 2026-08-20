@@ -20,3 +20,8 @@ traffic_project/data/
 *.hdf5
 *.parquet
 *.csv
+
+# Claude Code tooling
+.agents/
+.claude/
+skills-lock.json
