@@ -1,6 +1,6 @@
 # STGTransformer — Resilient Urban Mobility
 
-> **A Multi-Modal Spatiotemporal Transformer–GNN Pipeline with SHAP Explainability for Real-Time Traffic Congestion Prediction**
+> **A Multi-Modal Spatiotemporal Transformer–GNN Pipeline with SHAP-Style Explainability for Real-Time Traffic Congestion Prediction**
 
 **Authors:** Peter Yacoub · Mohamed Malek Kaouach  
 **Supervisor:** Prof. Mohammed Deriche  
@@ -14,13 +14,13 @@
 1. [Project Overview](#1-project-overview)
 2. [Results at a Glance](#2-results-at-a-glance)
 3. [Repository Structure](#3-repository-structure)
-4. [Google Drive Folder Structure](#4-google-drive-folder-structure)
+4. [Local Project Data Layout](#4-local-project-data-layout)
 5. [Prerequisites](#5-prerequisites)
 6. [Dataset Setup](#6-dataset-setup)
 7. [Phase-by-Phase Execution Guide](#7-phase-by-phase-execution-guide)
    - [Phase 1 — Data Download](#phase-1--data-download)
    - [Phase 2 & 3 — Preprocessing & Baselines](#phase-2--3--preprocessing--baselines)
-   - [Phase 4 — Model Training](#phase-4--model-training)
+   - [Phase 4 — Model Training (STGTransformer v2)](#phase-4--model-training-stgtransformer-v2)
    - [Phase 5 — Ablation & SHAP](#phase-5--ablation--shap)
    - [Phase 6 — Deployment](#phase-6--deployment)
 8. [Quick Restart Guide](#8-quick-restart-guide)
@@ -32,17 +32,17 @@
 
 ## 1. Project Overview
 
-STGTransformer is the first framework to combine:
-- **Bidirectional Diffusion GNN** for spatial road network modeling
-- **Temporal Transformer** (8 heads, 2 layers) for long-range sequence reasoning
-- **Multi-modal fusion** of traffic speed, weather, and accident context (12 features)
-- **SHAP explainability** revealing which features drive congestion predictions
+STGTransformer combines:
+- **Bidirectional Diffusion GNN** (2 layers) for spatial road network modeling
+- **Temporal Transformer** (4 attention heads, 2 encoder layers, `d_model=128`) for long-range sequence reasoning
+- **Multi-modal fusion** of traffic speed, cyclical time-of-day/day-of-week encodings, weather, and accident context (31 engineered features, including one-hot weather categories)
+- **Gradient-based feature attribution** (input × gradient, computed per test sample) to explain which features drive each prediction
 
 **Datasets used:**
 - [PEMS-BAY](https://zenodo.org/record/5724362) — 325 highway sensors, SF Bay Area, Jan–Jun 2017
-- [US-Accidents](https://www.kaggle.com/datasets/sobhanmoosavi/us-accidents) — 7.7M countrywide accident records (Kaggle)
+- [US-Accidents](https://www.kaggle.com/datasets/sobhanmoosavi/us-accidents) — 7.7M countrywide accident records (Kaggle), filtered to ~35.6K Bay Area 2017 records
 
-**Key finding:** Multi-modal enrichment achieves competitive accuracy (masked MAPE 5.91% at 60 min) while processing 12 heterogeneous features — and SHAP analysis reveals accident features individually outrank meteorological features in predictive importance.
+**Key finding:** traffic speed and time-of-day dominate the model's predictions — they account for **90.6%** of total feature attribution, versus **7.0%** for weather and **2.4%** for accident context. Consistent with this, an ablation study shows that adding weather + accident features does **not** improve accuracy: the Speed + Time-only model beats the full multi-modal model by **2–5% MAE** at every horizon. Multi-modal fusion remains a genuine architectural contribution and the explainability pipeline correctly surfaces this result — but it is not a validated accuracy win on this dataset.
 
 ---
 
@@ -52,11 +52,14 @@ STGTransformer is the first framework to combine:
 |---|---|---|---|
 | Historical Average | 2.93 mph | 3.11 mph | 3.54 mph |
 | ARIMA | 2.98 mph | 2.99 mph | 3.03 mph |
-| LSTM | 1.48 mph | 1.97 mph | 2.61 mph |
-| **STGTransformer (ours)** | **1.48 mph** | **1.93 mph** | **2.48 mph** |
-| STGTransformer (5 seeds) | 1.51 ± 0.02 | 1.97 ± 0.03 | 2.54 ± 0.07 |
+| LSTM (no spatial) | 1.47 mph | 1.97 mph | 2.61 mph |
+| **STGTransformer v2 (ours)** | **1.46 mph** | **1.88 mph** | **2.38 mph** |
 
-**Masked MAPE** (speed > 5 mph): **3.10% / 4.35% / 5.91%** at 15/30/60 min
+- Beats LSTM at every horizon (spatial modeling helps).
+- Beats STGCN (2018, published) at 60 min: 2.38 vs 2.49 mph.
+- Within ~6% of DCRNN (2018, published) at 15 min: 1.46 vs 1.38 mph.
+
+**Masked MAPE:** **3.07% / 4.25% / 5.69%** at 15/30/60 min · **Best checkpoint:** `stgt_v2_continued_best.pt` (epoch 88 of 100, val_loss = 0.0763, 641,740 parameters)
 
 ---
 
@@ -65,81 +68,74 @@ STGTransformer is the first framework to combine:
 ```
 stgtransformer/
 │
-├── Phase_1.ipynb              # Data download from Kaggle + PEMS-BAY
-├── Phase2&3.ipynb        # Preprocessing, EDA, baseline models (HA, ARIMA, LSTM)
-├── Phase_4.ipynb              # STGTransformer training + multi-seed validation
-├── Phase_5.ipynb             # Ablation study + SHAP explainability
-├── Phase6.ipynb              # Deployment: FastAPI + Docker + Streamlit
+├── Phase_1.ipynb                      # Data download from Kaggle + PEMS-BAY verification
+├── Phase2&3.ipynb                     # Preprocessing, EDA, baseline models (HA, ARIMA, LSTM)
+├── run_before_phase4.ipynb            # Pre-Phase-4 environment/data sanity checks
+├── Phase_4.ipynb                      # STGTransformer v1 (d_model=64) — superseded
+├── Phase_4_STGTransformer_v2.ipynb    # STGTransformer v2 (d_model=128) — current best model
+├── Phase_5.ipynb                      # Ablation study + gradient-based explainability
+├── Phase6.ipynb                       # Deployment: FastAPI + Docker + Streamlit
 │
-├── README.md                  # This file
+├── traffic_project/                   # All data, checkpoints, results (see Section 4)
+├── README.md                          # This file
 └── LICENSE
 ```
 
-> **Note:** All data files, model checkpoints, and generated outputs are stored on Google Drive (not in this repository). See [Section 4](#4-google-drive-folder-structure) for the full Drive layout.
+> **Note:** the pipeline now runs entirely **locally** against `./traffic_project/` — no Google Drive/Colab mounting is required. All notebooks are self-contained and can be run independently as long as `./traffic_project/` has the expected upstream files.
 
 ---
 
-## 4. Google Drive Folder Structure
+## 4. Local Project Data Layout
 
-All notebooks read from and write to:
+All notebooks read from and write to `./traffic_project/` (relative to the repo root):
 
 ```
-/content/drive/MyDrive/traffic_project/
+traffic_project/
 │
-├── 📦 Raw Data
+├── 📦 raw_data/
 │   ├── pems-bay.h5                    # PEMS-BAY speed data (52,116 × 325)
-│   ├── pems-bay-meta.h5               # Sensor metadata (lat/lon/highway info)
+│   ├── pems-bay-meta.h5               # Sensor metadata (lat/lon)
 │   ├── adj_mx_bay.pkl                 # Raw adjacency matrix
-│   ├── US_Accidents_March23.csv       # Full US-Accidents dataset
+│   ├── US_Accidents_March23.csv       # Full US-Accidents dataset (Kaggle download)
 │   └── us_accidents_bay_2017.csv      # Filtered Bay Area 2017 records
 │
-├── 🔧 Processed Data
-│   ├── merged_dataset_full.parquet    # 16.9M rows × 16 features (Stage 1+2 merged)
-│   ├── data_3d.npy                    # 3D array (52116, 325, 12) — model input
+├── 🔧 processed_data/
+│   ├── merged_dataset_full.parquet    # 16,937,700 rows × 16 cols (weather + accident merge)
+│   ├── data_3d.npy                    # 3D array (52116, 325, 31) — model input
 │   ├── adj_tensor.pt                  # PyTorch adjacency tensor
 │   ├── scaler.pkl                     # StandardScaler fitted on train only
-│   ├── config.json                    # Model hyperparameters
-│   ├── sensors_list.json              # Sensor IDs
-│   └── timestamps_list.json          # Timestamp index
+│   ├── config.json                    # Dataset/model config (n_features=31, batch_size, split indices)
+│   ├── sensors_list.json / timestamps_list.json
+│   └── weather_map.json               # Weather-condition → one-hot column mapping
 │
-├── 🤖 Model Checkpoints
-│   ├── stgt_v2_best.pt                # ✅ Best model — USE THIS (epoch 50, val=0.0776)
-│   ├── stgt_best.pt                   # Earlier checkpoint (epoch ~30)
+├── 🤖 checkpoints/
+│   ├── stgt_v2_continued_best.pt      # ✅ Best model — USE THIS (epoch 88/100, val_loss=0.0763)
+│   ├── stgt_best.pt                   # STGTransformer v1 (d_model=64) — superseded
+│   ├── stgt_train_losses.npy / stgt_val_losses.npy
 │   └── lstm_best.pt                   # LSTM baseline checkpoint
 │
-├── 📊 Results & Outputs
-│   ├── stgt_test_preds.npy            # STGTransformer test predictions
-│   ├── stgt_test_trues.npy            # Test ground truth
-│   ├── lstm_test_preds.npy            # LSTM test predictions
-│   ├── lstm_test_trues.npy            # LSTM test ground truth
-│   ├── ha_table.npy                   # Historical average lookup table
+├── 📊 results/
+│   ├── all_results.json               # Model comparison (MAE)
 │   ├── baseline_results.json          # HA + ARIMA results
-│   ├── all_results.json               # All model results
-│   ├── final_results_mph_v2.json      # Final results converted to mph
-│   ├── proper_ablation_results.json   # Ablation study results
-│   ├── multi_seed_results.json        # 5-seed statistical significance results
-│   ├── shap_values.npy                # SHAP values (15-min, 200 samples)
-│   ├── stgt_v2_training_log.txt       # Full training log
-│   ├── stgt_v2_train_losses.npy       # Training loss curve
-│   └── stgt_v2_val_losses.npy         # Validation loss curve
+│   ├── proper_ablation_results.json   # Ablation study results (3 feature-set variants)
+│   ├── shap_values.npy                # Gradient-attribution values (15-min, 200 samples)
+│   ├── shap_importance.png            # Feature importance bar chart
+│   ├── stgt_test_preds.npy / stgt_test_trues.npy
+│   └── lstm_test_preds.npy / lstm_test_trues.npy / ha_table.npy
 │
-├── 🖼️ Figures
-│   ├── sensor_map.png                 # Geographic sensor distribution map
-│   ├── pred_vs_gt.png                 # Prediction vs ground truth (1-week)
-│   ├── shap_importance.png            # SHAP feature importance bar chart
-│   ├── shap_feature_importance.png    # Alternative SHAP figure
-│   ├── shap_direction_and_time.png    # SHAP direction analysis
-│   └── shap_group_pie.png             # SHAP group breakdown pie chart
+├── 🧩 src/
+│   ├── dataset.py                     # TrafficDataset (shared sliding-window loader)
+│   ├── models.py                      # SpatioTemporalTransformer + DiffusionConvLayer
+│   └── utils.py
 │
-└── 🚀 Deployment
-    └── deployment/
-        ├── model.py                   # Model class definition
-        ├── preprocess.py              # Input preprocessing
-        ├── main.py                    # FastAPI app
-        ├── requirements.txt           # Python dependencies
-        ├── Dockerfile                 # Docker container definition
-        └── dashboard/
-            └── app.py                 # Streamlit dashboard
+└── 🚀 deployment/
+    ├── model.py                       # Model class definition (loads checkpoint)
+    ├── preprocess.py                  # Input preprocessing
+    ├── main.py                        # FastAPI app (/predict endpoint)
+    ├── requirements.txt / Dockerfile / .dockerignore
+    ├── model_files/                   # Copied checkpoint + config for serving
+    └── dashboard/
+        └── app.py                     # Streamlit dashboard (dark glassmorphism UI)
 ```
 
 ---
@@ -147,38 +143,46 @@ All notebooks read from and write to:
 ## 5. Prerequisites
 
 ### Environment
-All notebooks run on **Google Colab** (free or Pro tier). A **T4 GPU** is recommended for Phase 4 training.
+All notebooks run **locally** in a Python virtual environment (a `.venv` is used in this repo). Model training in Phase 4 was run on an **RTX 4060 8GB** GPU; a CUDA GPU is recommended but not required (CPU works, just slower).
 
 ### Python packages
-Each notebook installs its own dependencies in Cell 1. The core stack is:
+Each notebook installs/imports its own dependencies. The core stack is:
 
 ```
-torch >= 2.0
-torch-geometric
+torch
 numpy
 pandas
 scikit-learn
 pyarrow
+tables
 h5py
-shap
 matplotlib
-contextily
-pyproj
+python-dotenv
+kaggle
 fastapi
 uvicorn
+pydantic
 streamlit
+plotly
+requests
 ```
 
 ### Kaggle API token
-Phase 1 requires a Kaggle API token to download US-Accidents. Get yours from:  
-**[kaggle.com → Account → API → Create New Token](https://www.kaggle.com/settings)**
+Phase 1 requires a Kaggle API token to download US-Accidents. Get yours from **[kaggle.com → Account → API → Create New Token](https://www.kaggle.com/settings)**, then put your credentials in a `.env` file at the repo root:
+
+```
+KAGGLE_USERNAME=your_username
+KAGGLE_KEY=your_api_key
+```
+
+Phase 1's setup cell calls `load_dotenv()` followed by `kaggle.api.authenticate()`.
 
 ---
 
 ## 6. Dataset Setup
 
 ### PEMS-BAY
-Download from Zenodo and upload to your Drive manually:
+Download from Zenodo and place manually into `./traffic_project/raw_data/`:
 
 ```
 https://zenodo.org/record/5724362
@@ -189,197 +193,164 @@ Files needed:
 - `pems-bay-meta.h5` — sensor metadata
 - `adj_mx_bay.pkl` — adjacency matrix
 
-Upload all three to `/content/drive/MyDrive/traffic_project/`
-
 ### US-Accidents
 Downloaded automatically in Phase 1 via the Kaggle API.
 
 ```
 Dataset: https://www.kaggle.com/datasets/sobhanmoosavi/us-accidents
-Size: ~3GB (full dataset — Phase 1 filters to ~35K Bay Area records)
+Size: ~3GB (full dataset — Phase 1 filters to ~35.6K Bay Area 2017 records)
 ```
 
 ---
 
 ## 7. Phase-by-Phase Execution Guide
 
-> **Important:** Always mount Google Drive at the start of each session. Each notebook's Cell 1 does this automatically.
+> **Important:** the pipeline runs entirely against `./traffic_project/` on local disk. No Drive-mount step is needed — just make sure you're running notebooks from the repo root.
 
 ---
 
 ### Phase 1 — Data Download
 
 **Notebook:** `Phase_1.ipynb`  
-**Purpose:** Download US-Accidents from Kaggle and verify PEMS-BAY files exist on Drive.  
-**Runtime:** ~5–10 minutes
+**Purpose:** Authenticate with Kaggle, download US-Accidents, filter to Bay Area 2017, verify PEMS-BAY files, and produce the merged 16.9M-row corpus.  
+**Runtime:** ~15–25 minutes (weather + accident-context merges are the slow steps)
 
 **Steps:**
+1. Create a `.env` file with your `KAGGLE_USERNAME` / `KAGGLE_KEY` (see [Section 5](#5-prerequisites))
+2. Open `Phase_1.ipynb` and run all cells top to bottom
+3. Manually upload the three PEMS-BAY files into `./traffic_project/raw_data/` before the verification cell
 
-1. Open `Phase_1.ipynb` in Google Colab
-2. In **Cell 1**, paste your Kaggle API token:
-```python
-os.environ['KAGGLE_API_TOKEN'] = "your_kaggle_token_here"
-```
-3. Run all cells top to bottom
-
-**Output:**
-- `US_Accidents_March23.csv` downloaded to Drive
-- `us_accidents_bay_2017.csv` — filtered Bay Area 2017 records
-
-> ⚠️ PEMS-BAY files (`pems-bay.h5`, `pems-bay-meta.h5`, `adj_mx_bay.pkl`) must be uploaded manually to Drive before proceeding.
+**What happens:**
+- Downloads and filters US-Accidents to 35,645 Bay Area 2017 records
+- Stage 1: nearest-in-time weather join (±4h) → **97.8% weather coverage**
+- Stage 2: accident context window (5km radius, 60-min lookback) → `acc_count_60min`, `acc_max_severity`, `acc_mins_since`
+- Saves `merged_dataset_full.parquet` — 16,937,700 rows × 16 columns
 
 ---
 
 ### Phase 2 & 3 — Preprocessing & Baselines
 
 **Notebook:** `Phase2&3.ipynb`  
-**Purpose:** Load and merge datasets, build the 3D model-ready array, run baseline models (HA, ARIMA, LSTM).  
-**Runtime:** ~45–90 minutes (merge is the slow step)
+**Purpose:** Build the 3D model-ready array and run baseline models (HA, ARIMA, LSTM).  
+**Runtime:** ~30–60 minutes
 
 **Steps:**
-
-1. Open `Phase2&3.ipynb` in Google Colab
-2. Ensure Phase 1 is complete and Drive files exist
-3. Run all cells top to bottom
+1. Ensure Phase 1 is complete
+2. Run all cells top to bottom
 
 **What happens:**
-- Stage 1: Nearest-in-time weather join (≤50km, ≤4h) → 97.8% weather coverage
-- Stage 2: Accident context window (5km radius, 60-min lookback)
-- Outputs `merged_dataset_full.parquet` (16.9M rows × 16 features)
-- Builds `data_3d.npy` (52116, 325, 12) — the final model input
-- Trains and evaluates HA, ARIMA(1,1,1), and LSTM baselines
-- Saves `scaler.pkl`, `adj_tensor.pt`, `baseline_results.json`
+- Adds cyclical time features and one-hot-encodes weather condition
+- Builds `data_3d.npy` — shape **(52116, 325, 31)**, the final model input (31 features: speed, 5 time features, 4 weather numerics, 3 accident features, ~18 one-hot weather categories)
+- Fits `scaler.pkl` (StandardScaler on train split only) and builds `adj_tensor.pt`
+- Trains and evaluates Historical Average, ARIMA, and LSTM baselines
 
-**Output files saved to Drive:**
+**Output files saved to `./traffic_project/`:**
 ```
-data_3d.npy
-adj_tensor.pt
-scaler.pkl
-config.json
-sensors_list.json
-timestamps_list.json
-merged_dataset_full.parquet
-baseline_results.json
-lstm_best.pt
-lstm_test_preds.npy
-lstm_test_trues.npy
+processed_data/data_3d.npy
+processed_data/adj_tensor.pt
+processed_data/scaler.pkl
+processed_data/config.json
+processed_data/sensors_list.json
+processed_data/timestamps_list.json
+processed_data/merged_dataset_full.parquet
+results/baseline_results.json
+checkpoints/lstm_best.pt
+results/lstm_test_preds.npy
+results/lstm_test_trues.npy
 ```
 
 ---
 
-### Phase 4 — Model Training
+### Phase 4 — Model Training (STGTransformer v2)
 
-**Notebook:** `Phase_4.ipynb`  
-**Purpose:** Train the STGTransformer, evaluate on test set, run 5-seed statistical significance.  
-**Runtime:** ~50 min (single run) | ~2.5 hours (multi-seed)  
-**Recommended GPU:** T4
+**Notebook:** `Phase_4_STGTransformer_v2.ipynb`  
+**Purpose:** Train the current best STGTransformer (`d_model=128`) and evaluate on the test set.  
+**Runtime:** ~2–3 hours for the full 100-epoch run on an RTX 4060 8GB GPU  
 
-**Run order:**
-
-```
-First time (full training):
-Cell 1 → Cell 2 → Cell 3 → Cell 4 → Cell 5 → Cell 6 → Cell 7 → Cell 8
-
-After session restart (multi-seed only):
-Cell 1 → Cell 2 → Cell 3 → Cell 8
-```
+> `Phase_4.ipynb` (v1, `d_model=64`) is kept for reference but is **superseded** — it lost to the LSTM baseline. All current results come from `Phase_4_STGTransformer_v2.ipynb`.
 
 **Cell guide:**
 
 | Cell | Purpose |
 |---|---|
-| 1 | Mount Drive, imports, set paths |
-| 2 | Build Dataset and DataLoaders |
-| 3 | Define STGTransformer architecture |
-| 4 | Training loop (50 epochs, Huber loss, Cosine Annealing) |
-| 5 | Evaluate on test set → MAE / RMSE / MAPE |
-| 6 | Convert results to mph, save figures |
-| 7 | Save all results to JSON |
-| 8 | Multi-seed validation (5 seeds × 30 epochs) — ~2.5 hours |
+| 1 | Setup: imports, load data + adjacency |
+| 2 | Dataset & DataLoaders |
+| 4 | Temporal Transformer encoder definition |
+| 5 | Full model: `SpatioTemporalTransformer` (Diffusion GNN + Transformer) |
+| 6 | Sanity-check forward pass |
+| 7 | Training loop with checkpointing (50 epochs) |
+| — | Continued run: resumes from best checkpoint, epochs 50 → 100 |
+| 8 | Evaluate on test set → MAE / RMSE / MAPE |
+| 9 | Full comparison table vs. baselines |
 
 **Key hyperparameters:**
 ```python
-d_model     = 128
-n_heads     = 8
-n_layers    = 2
-seq_len     = 12
-batch_size  = 16
-lr          = 3e-4
-epochs      = 50
-loss        = HuberLoss(delta=1.0)
-scheduler   = CosineAnnealingLR
+d_model      = 128
+n_heads      = 4          # kept fixed to isolate the d_model change from v1
+n_gnn_layers = 2
+n_tf_layers  = 2
+dropout      = 0.1
+seq_len      = 12         # input_steps
+pred_steps   = 12         # 5-min steps out to 60 min; 15/30/60-min horizons read at steps 2/5/11
+batch_size   = 32         # epochs 1-50; continued run (51-100) used batch_size=64 for speed
+lr           = 3e-4
+optimizer    = Adam(weight_decay=1e-4)
+scheduler    = ReduceLROnPlateau(factor=0.5, patience=4)
+loss         = HuberLoss(delta=1.0)
+grad_clip    = 1.0
+total_epochs = 100         # continued from a 50-epoch run whose best val_loss was 0.0775
 ```
 
-**Output files saved to Drive:**
+**Output files saved to `./traffic_project/`:**
 ```
-stgt_v2_best.pt               ← best checkpoint (use this)
-stgt_test_preds.npy
-stgt_test_trues.npy
-stgt_v2_train_losses.npy
-stgt_v2_val_losses.npy
-stgt_v2_training_log.txt
-stgt_v2_results.json
-final_results_mph_v2.json
-multi_seed_results.json       ← after Cell 8
+checkpoints/stgt_v2_continued_best.pt   ← best checkpoint (use this)
+checkpoints/stgt_train_losses.npy
+checkpoints/stgt_val_losses.npy
+results/stgt_test_preds.npy
+results/stgt_test_trues.npy
+results/all_results.json
 ```
 
-> ✅ **Best checkpoint:** `stgt_v2_best.pt` — epoch 50, val_loss = 0.0776, 639,308 parameters
+> ✅ **Best checkpoint:** `stgt_v2_continued_best.pt` — epoch 88 of 100, val_loss = 0.0763, 641,740 parameters. Epochs 89–100 bought nothing further (val loss plateaued at 0.0763–0.0766); the model was effectively converged by ~epoch 85–88.
 
 ---
 
-### Phase 5 — Ablation & SHAP
+### Phase 5 — Ablation & SHAP-Style Explainability
 
 **Notebook:** `Phase_5.ipynb`  
-**Purpose:** Ablation study (per-modality contribution), SHAP explainability (15-min horizon).  
-**Runtime:** ~30 min (ablation) + ~15–20 min (SHAP on GPU) or ~4 hours (SHAP on CPU)
-
-**Run order:**
-
-```
-First time:
-Cell 1 → Cell 2 → Cell 3 → Cell 4 → Cell 5 → Cell 6 → Cell 7
-
-After session restart (skip ablation, run SHAP only):
-Cell 1 → Cell 2 → Cell 3 → Cell 5 → Cell 6 → Cell 7
-```
+**Purpose:** Ablation study (per-modality contribution) and gradient-based feature attribution (15-min horizon), loading `stgt_v2_continued_best.pt`.  
+**Runtime:** ~35–45 minutes (3 ablation variants × 20 epochs) + a few minutes for attribution (200 samples, GPU)
 
 **Cell guide:**
 
 | Cell | Purpose |
 |---|---|
-| 1 | Mount Drive, imports, load data + adjacency |
-| 2 | Build DataLoaders |
-| 3 | Define model, load `stgt_v2_best.pt` |
-| 4 | Ablation helper functions |
-| 5 | Run ablation (3 variants × 25 epochs) |
-| 6 | SHAP KernelExplainer (200 test samples, 15-min horizon) |
-| 7 | Final summary + save all figures |
+| 1 | Setup: load data, adjacency, config |
+| 2 | Dataset & DataLoaders |
+| 3 | Model definition, load `stgt_v2_continued_best.pt` |
+| 4 | Ablation helpers + run 3 variants |
+| — | Gradient × input attribution (200 test samples, 15-min horizon) |
+| 6 | Feature importance charts |
+| 7 | Final summary |
 
-**Ablation variants trained:**
-1. Speed + Time features only
-2. + Weather (5 features)
-3. + Accidents (full 12-feature model)
+**Ablation variants trained (20 epochs each, from scratch):**
+1. Speed + Time only (4 features)
+2. + Weather (9 features)
+3. Full — Speed + Time + Weather + Accidents (31 features)
 
-**Output files saved to Drive:**
+**Output files saved to `./traffic_project/`:**
 ```
-proper_ablation_results.json
-shap_values.npy
-shap_importance.png
-shap_feature_importance.png
-shap_direction_and_time.png
-shap_group_pie.png
-sensor_map.png
-pred_vs_gt.png
+results/proper_ablation_results.json
+results/shap_values.npy
+results/shap_importance.png
 ```
-
-> ⚠️ SHAP KernelExplainer is computationally intensive (~160 seconds/sample on CPU). Run on GPU when possible or reduce `nsamples` to speed up.
 
 ---
 
 ### Phase 6 — Deployment
 
 **Notebook:** `Phase6.ipynb`  
-**Purpose:** Build and launch the Streamlit dashboard for live traffic prediction.  
+**Purpose:** Build and launch the FastAPI backend + Streamlit dashboard for live traffic prediction.  
 **Runtime:** ~5 minutes setup, dashboard runs indefinitely
 
 **Run order:**
@@ -388,7 +359,7 @@ pred_vs_gt.png
 First time (full setup):
 Cell 1 → Cell 2 → Cell 3 → Cell 4 → Cell 5 → Cell 6 → Cell 7 → Cell 8 → Cell 9 → Cell 10 → Cell 11
 
-After session restart (relaunch only):
+After restart (relaunch only):
 Cell 1 → Cell 8 → Cell 10 → Cell 11
 ```
 
@@ -396,22 +367,24 @@ Cell 1 → Cell 8 → Cell 10 → Cell 11
 
 | Cell | Purpose |
 |---|---|
-| 1 | Mount Drive, set paths, create deployment folders |
-| 2 | Write `model.py` — STGTransformer class |
+| 1 | Setup, set paths, create deployment folders |
+| 2 | Write `model.py` — `SpatioTemporalTransformer` class (`d_model=128`, `n_heads=4`) |
 | 3 | Write `preprocess.py` — input preprocessing |
 | 4 | Write `main.py` — FastAPI `/predict` endpoint |
 | 5 | Write `requirements.txt` and `Dockerfile` |
-| 6 | Write Streamlit `app.py` — dashboard |
-| 7 | Copy model files to deployment folder |
+| 6 | Write Streamlit `app.py` — dark glassmorphism dashboard |
+| 7 | Copy model files to `deployment/model_files/` |
 | 8 | Start FastAPI server (background process) |
 | 9 | Test `/predict` endpoint with sample JSON |
 | 10 | Start Streamlit dashboard |
-| 11 | Get public URL via localtunnel |
+| 11 | Get local/public dashboard URL |
 | 12 | Build Docker image (optional) |
 | 13 | Deployment summary |
 
+Checkpoint resolution in `model.py` / `main.py` prefers, in order: `stgt_v2_continued_best.pt` → `stgt_v2_best.pt` → `stgt_best.pt`. Both known `d_model=128` checkpoints use `n_heads=4` — this is hardcoded in `model.py` rather than inferred from `d_model`, since the state-dict shape doesn't reveal head count and an earlier auto-detection heuristic guessed `n_heads=8` incorrectly.
+
 **Using the dashboard:**
-1. Run Cell 11 to get the localtunnel URL
+1. Run Cell 11 to get the dashboard URL
 2. Open the URL in your browser
 3. In the sidebar: select Sensor ID, Hour of Day, Day of Week, Weather Condition, Nearby Accidents
 4. Click **Predict** to get 15/30/60-min speed forecasts
@@ -434,91 +407,112 @@ print(response.json())
 # {"15min_mph": 42.86, "30min_mph": 45.21, "60min_mph": 52.26, "congestion": "Medium"}
 ```
 
-> ⚠️ The FastAPI server and Streamlit dashboard run as background processes inside Colab. They stop when the Colab session ends. Re-run `Cell 1 → Cell 8 → Cell 10 → Cell 11` to restart.
+> ⚠️ The FastAPI server and Streamlit dashboard run as background processes. Re-run `Cell 1 → Cell 8 → Cell 10 → Cell 11` to restart after a kernel restart.
 
-> ⚠️ Docker image build (Cell 12) is optional — it requires ~5GB disk space and a long runtime. The Streamlit dashboard works without Docker.
+> ⚠️ Docker image build (Cell 12) is optional — it requires ~5GB disk space and a long build time. The Streamlit dashboard works without Docker.
 
 ---
 
 ## 8. Quick Restart Guide
 
-Use this table when resuming after a Colab session timeout:
+Use this table when resuming after a kernel/session restart:
 
 | Goal | Notebook | Cells to run |
 |---|---|---|
-| Re-run full training | `Phase_4.ipynb` | 1 → 2 → 3 → 4 → 5 → 6 → 7 |
-| Multi-seed only | `Phase_4.ipynb` | 1 → 2 → 3 → 8 |
-| Ablation only | `Phase_55.ipynb` | 1 → 2 → 3 → 4 → 5 |
-| SHAP only | `Phase_55.ipynb` | 1 → 2 → 3 → 5 → 6 → 7 |
-| Relaunch dashboard | `Phase66.ipynb` | 1 → 8 → 10 → 11 |
+| Re-run full training | `Phase_4_STGTransformer_v2.ipynb` | 1 → 2 → 4 → 5 → 6 → 7 → 8 → 9 |
+| Ablation only | `Phase_5.ipynb` | 1 → 2 → 3 → 4 |
+| Attribution / feature importance only | `Phase_5.ipynb` | 1 → 2 → 3 → 6 → 7 |
+| Relaunch dashboard | `Phase6.ipynb` | 1 → 8 → 10 → 11 |
 
 ---
 
 ## 9. Model Architecture
 
 ```
-Input X  (B, T=12, N=325, F=12)
+Input X  (B, T=12, N=325, F=31)
     │
     ▼
-Input Projection  ──  Linear: F=12 → d=128
+Input Projection  ──  Linear: F=31 → d=128
     │
     ▼
-Bidirectional Diffusion GNN × 2
+Bidirectional Diffusion GNN × 2 layers (2-hop diffusion each)
     ├── Forward diffusion:   H_fwd = ReLU(A_fwd · H · W_fwd)
     ├── Backward diffusion:  H_bwd = ReLU(A_bwd · H · W_bwd)
     └── Spatial Gate g:      H_fused = g⊙H_gnn + (1-g)⊙H_orig
     │
     ▼
 Temporal Transformer
-    ├── 8 attention heads
+    ├── 4 attention heads
     ├── 2 encoder layers
     └── Learnable positional embeddings
     │
     ▼
-Prediction Head  ──  FC → ReLU → Dropout(0.1) → FC
+Prediction Head  ──  FC(128→64) → ReLU → Dropout(0.1) → FC(64→12)
     │
     ▼
-Output  (B, H=12, N=325)  →  Speed at 15 / 30 / 60 min for all 325 sensors
+Output  (B, H=12, N=325)  →  Speed at 15 / 30 / 60 min (steps 2/5/11) for all 325 sensors
 ```
 
-**Total parameters:** 639,308  
-**Training:** 50 epochs, T4 GPU, ~62s/epoch  
-**Loss:** Huber (δ=1.0) — reduces MAPE by 6.3% vs MSE  
-**Optimizer:** Adam + Cosine Annealing (lr=3e-4 → 1e-5)
+**Total parameters:** 641,740  
+**Training:** 100 epochs total (50 + 50 continued), RTX 4060 8GB GPU  
+**Best checkpoint:** epoch 88, val_loss = 0.0763  
+**Loss:** Huber (δ=1.0)  
+**Optimizer:** Adam (weight_decay=1e-4) + `ReduceLROnPlateau` (factor=0.5, patience=4)
 
 ---
 
 ## 10. Key Results
 
-### Performance (mph)
+### Performance (mph) — `stgt_v2_continued_best.pt`, test set
 
 | Metric | 15 min | 30 min | 60 min |
 |---|---|---|---|
-| MAE | 1.48 | 1.93 | 2.48 |
-| RMSE | 3.09 | 4.19 | 5.28 |
-| Masked MAPE | 3.10% | 4.35% | 5.91% |
+| MAE | 1.46 | 1.88 | 2.38 |
+| RMSE | 3.03 | 4.07 | 5.08 |
+| Masked MAPE | 3.07% | 4.25% | 5.69% |
 
-### Statistical Significance (5 random seeds)
+### Comparison vs. published models (MAE, mph)
 
-| Horizon | MAE ± std |
-|---|---|
-| 15 min | 1.51 ± 0.02 mph |
-| 30 min | 1.97 ± 0.03 mph |
-| 60 min | 2.54 ± 0.07 mph |
-
-### SHAP Feature Importance (15-min horizon)
-
-| Rank | Feature | Mean \|SHAP\| | Group |
+| Model | 15 min | 30 min | 60 min |
 |---|---|---|---|
-| 1 | Traffic Speed | 0.297 | Traffic |
-| 2 | Hour of Day | 0.020 | Traffic |
-| 3 | Is Weekend | 0.003 | Traffic |
-| 4 | Accident Severity | 0.002 | Accident |
-| 5 | Accident Count (60min) | 0.002 | Accident |
-| 6 | Humidity | 0.001 | Weather |
-| 7 | Visibility | 0.001 | Weather |
+| Historical Average | 2.93 | 3.11 | 3.54 |
+| ARIMA | 2.98 | 2.99 | 3.03 |
+| LSTM (no spatial) | 1.47 | 1.97 | 2.61 |
+| **STGTransformer v2 (ours)** | **1.46** | **1.88** | **2.38** |
+| DCRNN (2018, published) | 1.38 | 1.74 | 2.07 |
+| STGCN (2018, published) | 1.36 | 1.81 | 2.49 |
+| Graph WaveNet (2019, published) | 1.30 | 1.63 | 1.95 |
 
-**Key finding:** Accident features (ranks 4–5) outrank weather features (ranks 6–7) individually — real-time incident feeds deliver more predictive value per sensor than distributed weather stations.
+- Beats STGCN at 60 min (2.38 vs 2.49 mph); within ~6% of DCRNN at 15 min; beats LSTM at all horizons.
+
+### Ablation study (multi-modal fusion — corrected finding)
+
+Adding weather + accident features does **not** improve accuracy on this dataset. `Speed + Time only` scores best across all horizons; the `Full` multi-modal variant is **2–5% worse**:
+
+| Variant | 15 min | 30 min | 60 min |
+|---|---|---|---|
+| Speed + Time only | 0.1579 | 0.2046 | 0.2622 |
+| Speed + Time + Weather | 0.1571 | 0.2052 | 0.2628 |
+| Full (Speed + Time + Weather + Accidents) | 0.1659 | 0.2133 | 0.2682 |
+
+*(normalized-scale MAE; multi-modal gain vs. Speed+Time-only: −5.1% / −4.2% / −2.3%, i.e. worse)*
+
+### Feature attribution (gradient × input, 15-min horizon, 200 test samples)
+
+| Rank | Feature | Mean \|attribution\| | Group |
+|---|---|---|---|
+| 1 | Traffic Speed | 0.0562 | Traffic & Time |
+| 2 | Weather = Clear | 0.0167 | Weather |
+| 3 | Hour of Day (cos) | 0.0159 | Traffic & Time |
+| 4 | Hour of Day (sin) | 0.0126 | Traffic & Time |
+| 5 | Weather = Overcast | 0.0094 | Weather |
+| 6 | Is Weekend | 0.0066 | Traffic & Time |
+| 7 | Accident Severity | 0.0007 | Accident |
+| 8 | Accident Count (60 min) | 0.0006 | Accident |
+
+**Group breakdown:** Traffic & Time = **90.6%**, Weather = **7.0%**, Accident = **2.4%** of total attribution.
+
+**Key finding:** traffic speed and time-of-day dominate the model's predictions; weather and accident signal is weak and noisy at this granularity — consistent with the ablation result above. Real-time incident feeds and weather stations both contribute little marginal predictive value once recent traffic speed and time-of-day are known.
 
 ---
 
@@ -529,7 +523,7 @@ If you use this code or results in your work, please cite:
 ```bibtex
 @article{yacoub2025stgtransformer,
   title     = {Resilient Urban Mobility: A Multi-Modal Spatiotemporal
-               Transformer--GNN Pipeline with SHAP Explainability
+               Transformer--GNN Pipeline with Explainability
                for Real-Time Traffic Congestion Prediction},
   author    = {Yacoub, Peter and Kaouach, Mohamed Malek},
   journal   = {MAI603: Machine Learning, Ajman University},
@@ -542,6 +536,6 @@ If you use this code or results in your work, please cite:
 
 ---
 
-*Built with PyTorch, PyTorch Geometric, SHAP, FastAPI, and Streamlit.*  
+*Built with PyTorch, FastAPI, and Streamlit.*  
 *PEMS-BAY dataset courtesy of [Li et al., ICLR 2018](https://arxiv.org/abs/1707.01926).*  
 *US-Accidents dataset courtesy of [Moosavi et al., 2019](https://arxiv.org/abs/1906.05409).*
