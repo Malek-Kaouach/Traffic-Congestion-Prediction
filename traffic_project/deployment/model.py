@@ -125,7 +125,7 @@ class TrafficPredictor:
         # Inspect checkpoint to dynamically match architecture dimensions
         ckpt = torch.load(checkpoint_path, map_location="cpu")
         ckpt_d_model = ckpt["model_state_dict"]["input_proj.weight"].shape[0]
-        ckpt_n_heads = 8 if ckpt_d_model == 128 else 4
+        ckpt_n_heads = 4  # both stgt_best.pt (d_model=64) and stgt_v2_continued_best.pt (d_model=128) use 4 heads
 
         # Build and load model
         self.model = SpatioTemporalTransformer(
