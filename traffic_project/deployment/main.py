@@ -38,8 +38,9 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "model_files")
 
-# Check for checkpoint with fallback
-ckpt_name = "stgt_v2_best.pt" if os.path.exists(os.path.join(DATA_DIR, "stgt_v2_best.pt")) else "stgt_best.pt"
+# Check for checkpoint, preferring the fully-trained 100-epoch model
+_ckpt_candidates = ["stgt_v2_continued_best.pt", "stgt_v2_best.pt", "stgt_best.pt"]
+ckpt_name = next((n for n in _ckpt_candidates if os.path.exists(os.path.join(DATA_DIR, n))), _ckpt_candidates[0])
 
 predictor = TrafficPredictor(
     checkpoint_path = os.path.join(DATA_DIR, ckpt_name),
